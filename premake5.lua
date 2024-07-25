@@ -7,10 +7,10 @@ location(build_root)
 targetdir(build_bin)
 objdir(build_obj)
 
--- Define an ARCH variable
--- Only use this to enable architecture-specific functionality.
 if os.istarget("linux") then
   ARCH = os.outputof("uname -p")
+elseif os.istarget("macosx") then
+  ARCH = os.outputof("uname -m")
 else
   ARCH = "unknown"
 end
@@ -19,6 +19,7 @@ includedirs({
   ".",
   "src",
   "third_party",
+  "third_party/FFmpeg", -- Include FFmpeg directory
 })
 
 defines({
@@ -31,17 +32,20 @@ exceptionhandling("On")
 rtti("On")
 symbols("On")
 
--- TODO(DrChat): Find a way to disable this on other architectures.
-if ARCH ~= "ppc64" then
-  filter("architecture:x86_64")
-    vectorextensions("AVX")
-  filter({})
-end
-
 characterset("Unicode")
 flags({
-  "FatalWarnings",        -- Treat warnings as errors.
+  "FatalWarnings",
 })
+
+-- Apply -mavx only to x86_64 architecture and only to C++ files
+if ARCH == "x86_64" then
+  filter("architecture:x86_64")
+    filter("files:**.cpp or **.cc or **.cxx")
+      buildoptions({
+        "-mavx",
+      })
+    filter({})
+end
 
 filter("kind:StaticLib")
   defines({
@@ -56,18 +60,18 @@ filter("configurations:Checked")
   })
 filter({"configurations:Checked", "platforms:Windows"})
   buildoptions({
-    "/RTCsu",           -- Full Run-Time Checks.
+    "/RTCsu",
   })
 filter({"configurations:Checked", "platforms:Linux"})
   defines({
-    "_GLIBCXX_DEBUG",   -- libstdc++ debug mode
+    "_GLIBCXX_DEBUG",
   })
 filter({"configurations:Release", "platforms:Windows"})
-	buildoptions({
-		"/Gw", 
-		"/GS-", 
-		"/Oy"
-	})
+  buildoptions({
+    "/Gw",
+    "/GS-",
+    "/Oy"
+  })
 
 filter("configurations:Debug")
   runtime("Release")
@@ -78,7 +82,7 @@ filter("configurations:Debug")
   })
 filter({"configurations:Debug", "platforms:Linux"})
   defines({
-    "_GLIBCXX_DEBUG",   -- make dbg symbols work on some distros
+    "_GLIBCXX_DEBUG",
   })
 
 filter("configurations:Release")
@@ -92,17 +96,11 @@ filter("configurations:Release")
   flags({
     "LinkTimeOptimization",
   })
-  -- Not using floatingpoint("Fast") - NaN checks are used in some places
-  -- (though rarely), overall preferable to avoid any functional differences
-  -- between debug and release builds, and to have calculations involved in GPU
-  -- (especially anything that may affect vertex position invariance) and CPU
-  -- (such as constant propagation) emulation as predictable as possible,
-  -- including handling of specials since games make assumptions about them.
+
 filter("platforms:Linux")
   system("linux")
   toolset("clang")
   buildoptions({
-    -- "-mlzcnt",  -- (don't) Assume lzcnt is supported.
   })
   pkg_config.all("gtk+-x11-3.0")
   links({
@@ -147,11 +145,6 @@ filter("platforms:Android-*")
   systemversion("24")
   cppstl("c++")
   staticruntime("On")
-  -- Hidden visibility is needed to prevent dynamic relocations in FFmpeg
-  -- AArch64 Neon libavcodec assembly with PIC (accesses extern lookup tables
-  -- using `adrp` and `add`, without the Global Object Table, expecting that all
-  -- FFmpeg symbols that aren't a part of the FFmpeg API are hidden by FFmpeg's
-  -- original build system) by resolving those relocations at link time instead.
   visibility("Hidden")
   links({
     "android",
@@ -163,21 +156,19 @@ filter("platforms:Windows")
   system("windows")
   toolset("msc")
   buildoptions({
-    "/utf-8",   -- 'build correctly on systems with non-Latin codepages'.
-    -- Mark warnings as severe
-    "/w14839",  -- non-standard use of class 'type' as an argument to a variadic function
-    "/w14840",  -- non-portable use of class 'type' as an argument to a variadic function
-    -- Disable warnings
-    "/wd4100",  -- Unreferenced parameters are ok.
-    "/wd4201",  -- Nameless struct/unions are ok.
-    "/wd4512",  -- 'assignment operator was implicitly defined as deleted'.
-    "/wd4127",  -- 'conditional expression is constant'.
-    "/wd4324",  -- 'structure was padded due to alignment specifier'.
-    "/wd4189",  -- 'local variable is initialized but not referenced'.
+    "/utf-8",
+    "/w14839",
+    "/w14840",
+    "/wd4100",
+    "/wd4201",
+    "/wd4512",
+    "/wd4127",
+    "/wd4324",
+    "/wd4189",
   })
   flags({
-    "MultiProcessorCompile",  -- Multiprocessor compilation.
-    "NoMinimalRebuild",       -- Required for /MP above.
+    "MultiProcessorCompile",
+    "NoMinimalRebuild",
   })
 
   defines({
@@ -188,7 +179,7 @@ filter("platforms:Windows")
     "_AMD64=1",
   })
   linkoptions({
-    "/ignore:4006",  -- Ignores complaints about empty obj files.
+    "/ignore:4006",
     "/ignore:4221",
   })
   links({
@@ -203,13 +194,37 @@ filter("platforms:Windows")
     "bcrypt",
   })
 
--- Embed the manifest for things like dependencies and DPI awareness.
 filter({"platforms:Windows", "kind:ConsoleApp or WindowedApp"})
   files({
     "src/xenia/base/app_win32.manifest"
   })
 
--- Create scratch/ path
+filter("platforms:Mac")
+  system("macosx")
+  toolset("clang")
+  filter("files:**.cpp or **.cc or **.cxx")
+    buildoptions({
+      "-std=c++17",
+      "-stdlib=libc++",
+      "-mmacosx-version-min=10.15"
+    })
+    linkoptions({
+      "-stdlib=libc++",
+    })
+  filter({})
+  links({
+    "MoltenVK",
+    "Cocoa",
+    "IOKit",
+    "CoreVideo",
+    "Metal",
+    "Foundation"
+  })
+  xcodebuildsettings({
+    ["MACOSX_DEPLOYMENT_TARGET"] = "10.15",
+    ["ARCHS"] = "arm64"
+  })
+
 if not os.isdir("scratch") then
   os.mkdir("scratch")
 end
@@ -230,14 +245,8 @@ workspace("xenia")
       platforms({"Linux"})
     elseif os.istarget("macosx") then
       platforms({"Mac"})
-      xcodebuildsettings({           
-        ["ARCHS"] = "x86_64"
-      })
     elseif os.istarget("windows") then
       platforms({"Windows"})
-      -- 10.0.15063.0: ID3D12GraphicsCommandList1::SetSamplePositions.
-      -- 10.0.19041.0: D3D12_HEAP_FLAG_CREATE_NOT_ZEROED.
-      -- 10.0.22000.0: DWMWA_WINDOW_CORNER_PREFERENCE.
       filter("action:vs2017")
         systemversion("10.0.22000.0")
       filter("action:vs2019")
@@ -264,17 +273,9 @@ workspace("xenia")
   include("third_party/zstd.lua")
 
   if not os.istarget("android") then
-    -- SDL2 requires sdl2-config, and as of November 2020 isn't high-quality on
-    -- Android yet, most importantly in game controllers - the keycode and axis
-    -- enums are being ruined during conversion to SDL2 enums resulting in only
-    -- one controller (Nvidia Shield) being supported, digital triggers are also
-    -- not supported; lifecycle management (especially surface loss) is also
-    -- complicated.
     include("third_party/SDL2.lua")
   end
 
-  -- Disable treating warnings as fatal errors for all third party projects, as
-  -- well as other things relevant only to Xenia itself.
   for _, prj in ipairs(premake.api.scope.current.solution.projects) do
     project(prj.name)
     removefiles({
@@ -290,6 +291,7 @@ workspace("xenia")
   include("src/xenia/app/discord")
   include("src/xenia/apu")
   include("src/xenia/apu/nop")
+  include("src/xenia/apu/coreaudio")
   include("src/xenia/base")
   include("src/xenia/cpu")
   include("src/xenia/cpu/backend/x64")
@@ -303,6 +305,7 @@ workspace("xenia")
   include("src/xenia/patcher")
   include("src/xenia/ui")
   include("src/xenia/ui/vulkan")
+  include("src/xenia/ui/metal")
   include("src/xenia/vfs")
 
   if not os.istarget("android") then

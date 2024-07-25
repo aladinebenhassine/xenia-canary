@@ -1,0 +1,19 @@
+
+group("src")
+project("xenia-ui-metal")
+  uuid("B1234567-89AB-CDEF-0123-456789ABCDEF")
+  kind("StaticLib")
+  language("C++")
+  links({
+    "xenia-base",
+    "QuartzCore.framework",
+    "Metal.framework",
+  })
+  defines({
+    "XE_PLATFORM_MAC",
+  })
+  files({
+    "metal_main.cc",
+    "metal_graphics_system.cc",
+    "metal_graphics_system.h",
+  })

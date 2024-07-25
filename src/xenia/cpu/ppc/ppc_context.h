@@ -13,10 +13,11 @@
 #include <cstdint>
 #include <mutex>
 #include <string>
-
+#include "xenia/cpu/processor.h"
 #include "xenia/base/mutex.h"
 #include "xenia/base/vec128.h"
 #include "xenia/guest_pointers.h"
+
 namespace xe {
 namespace cpu {
 class Processor;
@@ -328,7 +329,7 @@ typedef struct alignas(64) PPCContext_s {
     struct {
       uint32_t rn : 2;      // FP rounding control: 00 = nearest
                             //                      01 = toward zero
-                            //                      10 = toward +infinity
+                            //                      10 = toward +
                             //                      11 = toward -infinity
       uint32_t ni : 1;      // Floating-point non-IEEE mode
       uint32_t xe : 1;      // IEEE floating-point inexact exception enable
@@ -441,10 +442,10 @@ typedef struct alignas(64) PPCContext_s {
     }
     return reinterpret_cast<T>(host_address);
 #else
-    return processor->memory()->TranslateVirtual<T>(guest_address);
-
+    return processor->memory()->template TranslateVirtual<T>(guest_address);
 #endif
   }
+
   template <typename T>
   inline xe::be<T>* TranslateVirtualBE(uint32_t guest_address)
       XE_RESTRICT const {
@@ -452,6 +453,7 @@ typedef struct alignas(64) PPCContext_s {
                   sizeof(T) > 1);  // maybe assert is_integral?
     return TranslateVirtual<xe::be<T>*>(guest_address);
   }
+
   // for convenience in kernel functions, version that auto narrows to uint32
   template <typename T = uint8_t*>
   inline T TranslateVirtualGPR(uint64_t guest_address) XE_RESTRICT const {
@@ -462,6 +464,7 @@ typedef struct alignas(64) PPCContext_s {
   inline T* TranslateVirtual(TypedGuestPointer<T> guest_address) {
     return TranslateVirtual<T*>(guest_address.m_ptr);
   }
+
   template <typename T>
   inline uint32_t HostToGuestVirtual(T* host_ptr) XE_RESTRICT const {
 #if XE_PLATFORM_WIN32 == 1
@@ -476,6 +479,7 @@ typedef struct alignas(64) PPCContext_s {
         reinterpret_cast<void*>(host_ptr));
 #endif
   }
+
   static std::string GetRegisterName(PPCRegister reg);
   std::string GetStringFromValue(PPCRegister reg) const;
   void SetValueFromString(PPCRegister reg, std::string value);

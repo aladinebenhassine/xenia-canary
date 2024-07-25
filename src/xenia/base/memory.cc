@@ -11,6 +11,7 @@
 #include "xenia/base/cvar.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/platform.h"
+#include "xenia/base/x64_features.h"
 
 #if XE_ARCH_ARM64
 #include <arm_neon.h>
@@ -196,6 +197,7 @@ static void first_vastcpy(CacheLine* XE_RESTRICT physaddr,
                           CacheLine* XE_RESTRICT rdmapping,
                           uint32_t written_length) {
   VastCpyDispatch dispatch_to_use = nullptr;
+  #if XE_ARCH_AMD64
   if (amd64::GetFeatureFlags() & amd64::kX64EmitMovdir64M) {
     XELOGI("Selecting MOVDIR64M vastcpy.");
     dispatch_to_use = vastcpy_impl_movdir64m;
@@ -206,6 +208,7 @@ static void first_vastcpy(CacheLine* XE_RESTRICT physaddr,
     XELOGI("Selecting generic AVX vastcpy.");
     dispatch_to_use = vastcpy_impl_avx;
   }
+  #endif
 
   vastcpy_dispatch =
       dispatch_to_use;  // all future calls will go through our selected path

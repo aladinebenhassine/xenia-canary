@@ -1,0 +1,21 @@
+
+group("src")
+project("xenia-apu-coreaudio")
+  uuid("A1234567-89AB-CDEF-0123-456789ABCDEF")
+  kind("StaticLib")
+  language("C++")
+  links({
+    "xenia-base",
+    "CoreAudio.framework",
+    "AudioToolbox.framework",
+  })
+  defines({
+    "XE_PLATFORM_MAC",
+  })
+  files({
+    "coreaudio_main.cc",
+    "coreaudio_audio_driver.cc",
+    "coreaudio_audio_driver.h",
+    "coreaudio_audio_system.cc",
+    "coreaudio_audio_system.h",
+  })

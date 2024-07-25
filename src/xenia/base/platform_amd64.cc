@@ -12,6 +12,8 @@
 #define XBYAK_NO_OP_NAMES
 #include "third_party/xbyak/xbyak/xbyak.h"
 #include "third_party/xbyak/xbyak/xbyak_util.h"
+#include "xenia/base/x64_features.h"
+
 DEFINE_int64(x64_extension_mask, -1LL,
              "Allow the detection and utilization of specific instruction set "
              "features.\n"
@@ -31,14 +33,13 @@ DEFINE_int64(x64_extension_mask, -1LL,
              " 4096 = AVX512VBMI\n"
              "   -1 = Detect and utilize all possible processor features\n",
              "x64");
+
 namespace xe {
 namespace amd64 {
+
 static uint64_t g_feature_flags = 0U;
 static bool g_did_initialize_feature_flags = false;
-uint64_t GetFeatureFlags() {
-  xenia_assert(g_did_initialize_feature_flags);
-  return g_feature_flags;
-}
+
 XE_COLD
 XE_NOINLINE
 void InitFeatureFlags() {
@@ -67,7 +68,7 @@ void InitFeatureFlags() {
     /*
     fix for xbyak bug/omission, amd cpus are never checked for lzcnt. fixed in
     latest version of xbyak
-  */
+    */
     unsigned int data[4];
     Xbyak::util::Cpu::getCpuid(0x80000001, data);
     unsigned amd_flags = data[2];
@@ -85,8 +86,8 @@ void InitFeatureFlags() {
     }
     // todo: although not reported by cpuid, zen 1 and zen+ also have fma4
     if (amd_flags & (1U << 16)) {
-      if ((cvars::x64_extension_mask & kX64EmitFMA4) == kX64EmitFMA4) {
-        feature_flags_ |= kX64EmitFMA4;
+      if ((cvars::x64_extension_mask & kX64EmitFMA) == kX64EmitFMA) {
+        feature_flags_ |= kX64EmitFMA;
       }
     }
     if (amd_flags & (1U << 21)) {
@@ -95,17 +96,17 @@ void InitFeatureFlags() {
       }
     }
     if (amd_flags & (1U << 11)) {
-      if ((cvars::x64_extension_mask & kX64EmitXOP) == kX64EmitXOP) {
-        feature_flags_ |= kX64EmitXOP;
+      if ((cvars::x64_extension_mask & kX64EmitGFNI) == kX64EmitGFNI) {
+        feature_flags_ |= kX64EmitGFNI;
       }
     }
     if (cpu_.has(Xbyak::util::Cpu::tAMD)) {
       bool is_zennish = cpu_.displayFamily >= 0x17;
       /*
-                  chrispy: according to agner's tables, all amd architectures
-         that we support (ones with avx) have the same timings for
-         jrcxz/loop/loope/loopne as for other jmps
-          */
+        chrispy: according to agner's tables, all amd architectures
+        that we support (ones with avx) have the same timings for
+        jrcxz/loop/loope/loopne as for other jmps
+      */
       feature_flags_ |= kX64FastJrcx;
       feature_flags_ |= kX64FastLoop;
       if (is_zennish) {
@@ -121,8 +122,8 @@ void InitFeatureFlags() {
     // intel extended features
     Xbyak::util::Cpu::getCpuidEx(7, 0, data);
     if ((data[2] & (1 << 28)) &&
-        (cvars::x64_extension_mask & kX64EmitMovdir64M)) {
-      feature_flags_ |= kX64EmitMovdir64M;
+        (cvars::x64_extension_mask & kX64EmitMovbe)) {
+      feature_flags_ |= kX64EmitMovbe;
     }
     if ((data[1] & (1 << 9)) && (cvars::x64_extension_mask & kX64FastRepMovs)) {
       feature_flags_ |= kX64FastRepMovs;
@@ -131,5 +132,6 @@ void InitFeatureFlags() {
   g_feature_flags = feature_flags_;
   g_did_initialize_feature_flags = true;
 }
+
 }  // namespace amd64
 }  // namespace xe

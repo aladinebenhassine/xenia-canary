@@ -10,13 +10,13 @@
 #ifndef XENIA_BASE_FILESYSTEM_H_
 #define XENIA_BASE_FILESYSTEM_H_
 
-#include <filesystem>
 #include <iterator>
 #include <memory>
 #include <regex>
 #include <string>
 #include <string_view>
 #include <vector>
+#include <filesystem>
 
 #include "xenia/base/platform.h"
 #include "xenia/base/string.h"

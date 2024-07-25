@@ -15,6 +15,12 @@ Please check the [FAQ](https://github.com/xenia-project/xenia/wiki/FAQ) page bef
 We've got jobs/lives/etc, so don't expect instant answers.
 
 Discussing illegal activities will get you banned.
+## Mac
+to build : 
+run : premake 5 gmake2
+then, run : cd build
+then, run : make
+
 
 ## Status
 
